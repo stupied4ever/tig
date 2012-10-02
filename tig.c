@@ -322,20 +322,6 @@ DEFINE_ENUM(ignore_space, IGNORE_SPACE_ENUM);
 
 DEFINE_ENUM(commit_order, COMMIT_ORDER_ENUM);
 
-#define VIEW_INFO(_) \
-	_(MAIN,   main,   ref_head), \
-	_(DIFF,   diff,   ref_commit), \
-	_(LOG,    log,    ref_head), \
-	_(TREE,   tree,   ref_commit), \
-	_(BLOB,   blob,   ref_blob), \
-	_(BLAME,  blame,  ref_commit), \
-	_(BRANCH, branch, ref_head), \
-	_(HELP,   help,   ""), \
-	_(PAGER,  pager,  ""), \
-	_(STATUS, status, "status"), \
-	_(STAGE,  stage,  ref_status), \
-	_(STASH,  stash,  ref_stash)
-
 static struct encoding *
 get_path_encoding(const char *path, struct encoding *default_encoding)
 {
