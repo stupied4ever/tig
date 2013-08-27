@@ -479,192 +479,6 @@ update_notes_arg()
 	}
 }
 
-struct line_info {
-	const char *name;	/* Option name. */
-	int namelen;		/* Size of option name. */
-	const char *line;	/* The start of line to match. */
-	int linelen;		/* Size of string to match. */
-	int fg, bg, attr;	/* Color and text attributes for the lines. */
-	int color_pair;
-};
-
-static struct line_info line_info[] = {
-#define LINE(type, line, fg, bg, attr) \
-	{ #type, STRING_SIZE(#type), (line), STRING_SIZE(line), (fg), (bg), (attr) }
-	LINE_INFO
-#undef	LINE
-};
-
-static struct line_info **color_pair;
-static size_t color_pairs;
-
-static struct line_info *custom_color;
-static size_t custom_colors;
-
-DEFINE_ALLOCATOR(realloc_custom_color, struct line_info, 8)
-DEFINE_ALLOCATOR(realloc_color_pair, struct line_info *, 8)
-
-#define TO_CUSTOM_COLOR_TYPE(type)	(LINE_NONE + 1 + (type))
-#define TO_CUSTOM_COLOR_OFFSET(type)	((type) - LINE_NONE - 1)
-
-/* Color IDs must be 1 or higher. [GH #15] */
-#define COLOR_ID(line_type)		((line_type) + 1)
-
-static enum line_type
-get_line_type(const char *line)
-{
-	int linelen = strlen(line);
-	enum line_type type;
-
-	for (type = 0; type < custom_colors; type++)
-		/* Case insensitive search matches Signed-off-by lines better. */
-		if (linelen >= custom_color[type].linelen &&
-		    !strncasecmp(custom_color[type].line, line, custom_color[type].linelen))
-			return TO_CUSTOM_COLOR_TYPE(type);
-
-	for (type = 0; type < ARRAY_SIZE(line_info); type++)
-		/* Case insensitive search matches Signed-off-by lines better. */
-		if (linelen >= line_info[type].linelen &&
-		    !strncasecmp(line_info[type].line, line, line_info[type].linelen))
-			return type;
-
-	return LINE_DEFAULT;
-}
-
-static enum line_type
-get_line_type_from_ref(const struct ref *ref)
-{
-	if (ref->head)
-		return LINE_MAIN_HEAD;
-	else if (ref->ltag)
-		return LINE_MAIN_LOCAL_TAG;
-	else if (ref->tag)
-		return LINE_MAIN_TAG;
-	else if (ref->tracked)
-		return LINE_MAIN_TRACKED;
-	else if (ref->remote)
-		return LINE_MAIN_REMOTE;
-	else if (ref->replace)
-		return LINE_MAIN_REPLACE;
-
-	return LINE_MAIN_REF;
-}
-
-static inline struct line_info *
-get_line(enum line_type type)
-{
-	if (type > LINE_NONE) {
-		assert(TO_CUSTOM_COLOR_OFFSET(type) < custom_colors);
-		return &custom_color[TO_CUSTOM_COLOR_OFFSET(type)];
-	} else {
-		assert(type < ARRAY_SIZE(line_info));
-		return &line_info[type];
-	}
-}
-
-static inline int
-get_line_color(enum line_type type)
-{
-	return COLOR_ID(get_line(type)->color_pair);
-}
-
-static inline int
-get_line_attr(enum line_type type)
-{
-	struct line_info *info = get_line(type);
-
-	return COLOR_PAIR(COLOR_ID(info->color_pair)) | info->attr;
-}
-
-static struct line_info *
-get_line_info(const char *name)
-{
-	size_t namelen = strlen(name);
-	enum line_type type;
-
-	for (type = 0; type < ARRAY_SIZE(line_info); type++)
-		if (enum_equals(line_info[type], name, namelen))
-			return &line_info[type];
-
-	return NULL;
-}
-
-static struct line_info *
-add_custom_color(const char *quoted_line)
-{
-	struct line_info *info;
-	char *line;
-	size_t linelen;
-
-	if (!realloc_custom_color(&custom_color, custom_colors, 1))
-		die("Failed to alloc custom line info");
-
-	linelen = strlen(quoted_line) - 1;
-	line = malloc(linelen);
-	if (!line)
-		return NULL;
-
-	strncpy(line, quoted_line + 1, linelen);
-	line[linelen - 1] = 0;
-
-	info = &custom_color[custom_colors++];
-	info->name = info->line = line;
-	info->namelen = info->linelen = strlen(line);
-
-	return info;
-}
-
-static void
-init_line_info_color_pair(struct line_info *info, enum line_type type,
-	int default_bg, int default_fg)
-{
-	int bg = info->bg == COLOR_DEFAULT ? default_bg : info->bg;
-	int fg = info->fg == COLOR_DEFAULT ? default_fg : info->fg;
-	int i;
-
-	for (i = 0; i < color_pairs; i++) {
-		if (color_pair[i]->fg == info->fg && color_pair[i]->bg == info->bg) {
-			info->color_pair = i;
-			return;
-		}
-	}
-
-	if (!realloc_color_pair(&color_pair, color_pairs, 1))
-		die("Failed to alloc color pair");
-
-	color_pair[color_pairs] = info;
-	info->color_pair = color_pairs++;
-	init_pair(COLOR_ID(info->color_pair), fg, bg);
-}
-
-static void
-init_colors(void)
-{
-	int default_bg = line_info[LINE_DEFAULT].bg;
-	int default_fg = line_info[LINE_DEFAULT].fg;
-	enum line_type type;
-
-	start_color();
-
-	if (assume_default_colors(default_fg, default_bg) == ERR) {
-		default_bg = COLOR_BLACK;
-		default_fg = COLOR_WHITE;
-	}
-
-	for (type = 0; type < ARRAY_SIZE(line_info); type++) {
-		struct line_info *info = &line_info[type];
-
-		init_line_info_color_pair(info, type, default_bg, default_fg);
-	}
-
-	for (type = 0; type < custom_colors; type++) {
-		struct line_info *info = &custom_color[type];
-
-		init_line_info_color_pair(info, TO_CUSTOM_COLOR_TYPE(type),
-					  default_bg, default_fg);
-	}
-}
-
 struct line {
 	enum line_type type;
 	unsigned int lineno:24;
@@ -1212,7 +1026,7 @@ option_color_command(int argc, const char *argv[])
 	if (*argv[0] == '"' || *argv[0] == '\'') {
 		info = add_custom_color(argv[0]);
 	} else {
-		info = get_line_info(argv[0]);
+		info = get_line_info_from_name(argv[0]);
 	}
 	if (!info) {
 		static const struct enum_map obsolete[] = {
@@ -1225,7 +1039,7 @@ option_color_command(int argc, const char *argv[])
 
 		if (!map_enum(&index, obsolete, argv[0]))
 			return OPT_ERR_UNKNOWN_COLOR_NAME;
-		info = &line_info[index];
+		info = get_line_info(index);
 	}
 
 	if (!set_color(&info->fg, argv[1]) ||
@@ -4396,7 +4210,7 @@ diff_common_read(struct view *view, const char *data, struct diff_state *state)
 	}
 
 	if (type == LINE_DIFF_HEADER) {
-		const int len = line_info[LINE_DIFF_HEADER].linelen;
+		const int len = get_line_info(LINE_DIFF_HEADER)->linelen;
 
 		state->after_diff = TRUE;
 		if (!strncmp(data + len, "combined ", strlen("combined ")) ||
@@ -7977,8 +7791,8 @@ init_display(void)
 	noecho();       /* Don't echo input */
 	leaveok(stdscr, FALSE);
 
-	if (has_colors())
-		init_colors();
+	if (has_colors() && init_colors() == ERR)
+		die("Failed to initialize colors");
 
 	getmaxyx(stdscr, y, x);
 	status_win = newwin(1, x, y - 1, 0);
@@ -8299,7 +8113,7 @@ set_work_tree(const char *value)
 static void
 parse_git_color_option(enum line_type type, char *value)
 {
-	struct line_info *info = &line_info[type];
+	struct line_info *info = get_line_info(type);
 	const char *argv[SIZEOF_ARG];
 	int argc = 0;
 	bool first_color = TRUE;
