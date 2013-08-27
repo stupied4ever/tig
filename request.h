@@ -114,4 +114,14 @@ enum request {
 #undef	REQ_
 };
 
+struct request_info {
+	enum request request;
+	const char *name;
+	int namelen;
+	const char *help;
+};
+
+enum request get_request(const char *name);
+bool foreach_request(bool (*visitor)(void *data, const struct request_info *req_info, const char *group), void *data);
+
 #endif

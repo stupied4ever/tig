@@ -347,38 +347,6 @@ get_path_encoding(const char *path, struct encoding *default_encoding)
 	return encoding_open(encoding);
 }
 
-/*
- * User requests
- */
-
-struct request_info {
-	enum request request;
-	const char *name;
-	int namelen;
-	const char *help;
-};
-
-static const struct request_info req_info[] = {
-#define REQ_GROUP(help)	{ 0, NULL, 0, (help) },
-#define REQ_(req, help)	{ REQ_##req, (#req), STRING_SIZE(#req), (help) }
-	REQ_INFO
-#undef	REQ_GROUP
-#undef	REQ_
-};
-
-static enum request
-get_request(const char *name)
-{
-	int namelen = strlen(name);
-	int i;
-
-	for (i = 0; i < ARRAY_SIZE(req_info); i++)
-		if (enum_equals(req_info[i], name, namelen))
-			return req_info[i].request;
-
-	return REQ_UNKNOWN;
-}
-
 
 /*
  * Options
@@ -4934,43 +4902,46 @@ help_open_keymap_title(struct view *view, struct keymap *keymap)
 	return keymap->hidden;
 }
 
-static void
-help_open_keymap(struct view *view, struct keymap *keymap)
+struct help_request_iterator {
+	struct view *view;
+	struct keymap *keymap;
+	bool add_title;
+	const char *group;
+};
+
+static bool
+help_open_keymap(void *data, const struct request_info *req_info, const char *group)
 {
-	const char *group = NULL;
-	char buf[SIZEOF_STR];
-	bool add_title = TRUE;
-	int i;
+	struct help_request_iterator *iterator = data;
+	struct view *view = iterator->view;
+	struct keymap *keymap = iterator->keymap;
+	const char *key = get_keys(keymap, req_info->request, TRUE);
 
-	for (i = 0; i < ARRAY_SIZE(req_info); i++) {
-		const char *key = NULL;
+	if (req_info->request == REQ_NONE || !key || !*key)
+		return TRUE;
 
-		if (req_info[i].request == REQ_NONE)
-			continue;
+	if (iterator->add_title && help_open_keymap_title(view, keymap))
+		return FALSE;
+	iterator->add_title = FALSE;
 
-		if (!req_info[i].request) {
-			group = req_info[i].help;
-			continue;
-		}
-
-		key = get_keys(keymap, req_info[i].request, TRUE);
-		if (!key || !*key)
-			continue;
-
-		if (add_title && help_open_keymap_title(view, keymap))
-			return;
-		add_title = FALSE;
-
-		if (group) {
-			add_line_text(view, group, LINE_HELP_GROUP);
-			group = NULL;
-		}
-
-		add_line_format(view, LINE_DEFAULT, "    %-25s %-20s %s", key,
-				enum_name(req_info[i]), req_info[i].help);
+	if (iterator->group != group) {
+		add_line_text(view, group, LINE_HELP_GROUP);
+		iterator->group = group;
 	}
 
-	group = "External commands:";
+	add_line_format(view, LINE_DEFAULT, "    %-25s %-20s %s", key,
+			enum_name(*req_info), req_info->help);
+	return TRUE;
+}
+
+static void
+help_open_keymap_run_requests(struct help_request_iterator *iterator)
+{
+	struct view *view = iterator->view;
+	struct keymap *keymap = iterator->keymap;
+	char buf[SIZEOF_STR];
+	const char *group = "External commands:";
+	int i;
 
 	for (i = 0; i < run_requests; i++) {
 		struct run_request *req = get_run_request(REQ_NONE + i + 1);
@@ -4983,9 +4954,9 @@ help_open_keymap(struct view *view, struct keymap *keymap)
 		if (!*key)
 			key = "(no key defined)";
 
-		if (add_title && help_open_keymap_title(view, keymap))
+		if (iterator->add_title && help_open_keymap_title(view, keymap))
 			return;
-		add_title = FALSE;
+		iterator->add_title = FALSE;
 
 		if (group) {
 			add_line_text(view, group, LINE_HELP_GROUP);
@@ -5008,8 +4979,12 @@ help_open(struct view *view, enum open_flags flags)
 	add_line_text(view, "Quick reference for tig keybindings:", LINE_DEFAULT);
 	add_line_text(view, "", LINE_DEFAULT);
 
-	for (keymap = keymaps; keymap; keymap = keymap->next)
-		help_open_keymap(view, keymap);
+	for (keymap = keymaps; keymap; keymap = keymap->next) {
+		struct help_request_iterator iterator = { view, keymap, TRUE };
+
+		if (foreach_request(help_open_keymap, &iterator))
+			help_open_keymap_run_requests(&iterator);
+	}
 
 	return TRUE;
 }
