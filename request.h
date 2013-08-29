@@ -32,19 +32,19 @@
 	REQ_(PREVIOUS,		"Move to previous"), \
 	REQ_(PARENT,		"Move to parent"), \
 	REQ_(VIEW_NEXT,		"Move focus to next view"), \
-	REQ_(REFRESH,		"Reload and refresh"), \
+	REQ_(REFRESH,		"Reload and refresh view"), \
 	REQ_(MAXIMIZE,		"Maximize the current view"), \
 	REQ_(VIEW_CLOSE,	"Close the current view"), \
 	REQ_(QUIT,		"Close all views and quit"), \
 	\
-	REQ_GROUP("View specific requests") \
-	REQ_(STATUS_UPDATE,	"Update file status"), \
-	REQ_(STATUS_REVERT,	"Revert file changes"), \
+	REQ_GROUP("View specific actions") \
+	REQ_(STATUS_UPDATE,	"Stage/unstage chunk or file changes"), \
+	REQ_(STATUS_REVERT,	"Revert chunk or file changes"), \
 	REQ_(STATUS_MERGE,	"Merge file using external tool"), \
-	REQ_(STAGE_UPDATE_LINE,	"Update single line"), \
+	REQ_(STAGE_UPDATE_LINE,	"Stage/unstage single line"), \
 	REQ_(STAGE_NEXT,	"Find next chunk to stage"), \
-	REQ_(DIFF_CONTEXT_DOWN,	"Decrease the diff context"), \
 	REQ_(DIFF_CONTEXT_UP,	"Increase the diff context"), \
+	REQ_(DIFF_CONTEXT_DOWN,	"Decrease the diff context"), \
 	\
 	REQ_GROUP("Cursor navigation") \
 	REQ_(MOVE_UP,		"Move cursor one line up"), \
@@ -55,13 +55,13 @@
 	REQ_(MOVE_LAST_LINE,	"Move cursor to last line"), \
 	\
 	REQ_GROUP("Scrolling") \
-	REQ_(SCROLL_FIRST_COL,	"Scroll to the first line columns"), \
-	REQ_(SCROLL_LEFT,	"Scroll two columns left"), \
-	REQ_(SCROLL_RIGHT,	"Scroll two columns right"), \
 	REQ_(SCROLL_LINE_UP,	"Scroll one line up"), \
 	REQ_(SCROLL_LINE_DOWN,	"Scroll one line down"), \
 	REQ_(SCROLL_PAGE_UP,	"Scroll one page up"), \
 	REQ_(SCROLL_PAGE_DOWN,	"Scroll one page down"), \
+	REQ_(SCROLL_FIRST_COL,	"Scroll to the first line columns"), \
+	REQ_(SCROLL_LEFT,	"Scroll two columns left"), \
+	REQ_(SCROLL_RIGHT,	"Scroll two columns right"), \
 	\
 	REQ_GROUP("Searching") \
 	REQ_(SEARCH,		"Search the view"), \
