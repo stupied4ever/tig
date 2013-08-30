@@ -371,11 +371,8 @@ static bool opt_wrap_lines		= FALSE;
 static bool opt_ignore_case		= FALSE;
 static bool opt_focus_child		= TRUE;
 static int opt_diff_context		= 3;
-static char opt_diff_context_arg[9]	= "";
 static enum ignore_space opt_ignore_space	= IGNORE_SPACE_NO;
-static char opt_ignore_space_arg[22]	= "";
 static enum commit_order opt_commit_order	= COMMIT_ORDER_DEFAULT;
-static char opt_commit_order_arg[22]	= "";
 static bool opt_notes			= TRUE;
 static char opt_notes_arg[SIZEOF_STR]	= "--show-notes";
 static int opt_num_interval		= 5;
@@ -440,40 +437,9 @@ load_refs(bool force)
 	return reload_refs(repo.git_dir, repo.remote, repo.head, sizeof(repo.head));
 }
 
-static inline void
-update_diff_context_arg(int diff_context)
-{
-	if (!string_format(opt_diff_context_arg, "-U%u", diff_context))
-		string_ncopy(opt_diff_context_arg, "-U3", 3);
-}
-
-static inline void
-update_ignore_space_arg()
-{
-	if (opt_ignore_space == IGNORE_SPACE_ALL) {
-		string_copy(opt_ignore_space_arg, "--ignore-all-space");
-	} else if (opt_ignore_space == IGNORE_SPACE_SOME) {
-		string_copy(opt_ignore_space_arg, "--ignore-space-change");
-	} else if (opt_ignore_space == IGNORE_SPACE_AT_EOL) {
-		string_copy(opt_ignore_space_arg, "--ignore-space-at-eol");
-	} else {
-		string_copy(opt_ignore_space_arg, "");
-	}
-}
-
-static inline void
-update_commit_order_arg()
-{
-	if (opt_commit_order == COMMIT_ORDER_TOPO) {
-		string_copy(opt_commit_order_arg, "--topo-order");
-	} else if (opt_commit_order == COMMIT_ORDER_DATE) {
-		string_copy(opt_commit_order_arg, "--date-order");
-	} else if (opt_commit_order == COMMIT_ORDER_REVERSE) {
-		string_copy(opt_commit_order_arg, "--reverse");
-	} else {
-		string_copy(opt_commit_order_arg, "");
-	}
-}
+static const char arg_diff_context[1];
+static const char arg_ignore_space[1];
+static const char arg_commit_order[1];
 
 static inline void
 update_notes_arg()
@@ -816,29 +782,14 @@ option_set_command(int argc, const char *argv[])
 	if (!strcmp(argv[0], "tab-size"))
 		return parse_int(&opt_tab_size, argv[2], 1, 1024);
 
-	if (!strcmp(argv[0], "diff-context")) {
-		enum option_code code = parse_int(&opt_diff_context, argv[2], 0, 999999);
+	if (!strcmp(argv[0], "diff-context"))
+		return parse_int(&opt_diff_context, argv[2], 0, 999999);
 
-		if (code == OPT_OK)
-			update_diff_context_arg(opt_diff_context);
-		return code;
-	}
+	if (!strcmp(argv[0], "ignore-space"))
+		return parse_enum(&opt_ignore_space, argv[2], ignore_space_map);
 
-	if (!strcmp(argv[0], "ignore-space")) {
-		enum option_code code = parse_enum(&opt_ignore_space, argv[2], ignore_space_map);
-
-		if (code == OPT_OK)
-			update_ignore_space_arg();
-		return code;
-	}
-
-	if (!strcmp(argv[0], "commit-order")) {
-		enum option_code code = parse_enum(&opt_commit_order, argv[2], commit_order_map);
-
-		if (code == OPT_OK)
-			update_commit_order_arg();
-		return code;
-	}
+	if (!strcmp(argv[0], "commit-order"))
+		return parse_enum(&opt_commit_order, argv[2], commit_order_map);
 
 	if (!strcmp(argv[0], "status-untracked-dirs"))
 		return parse_bool(&opt_untracked_dirs_content, argv[2]);
@@ -1814,12 +1765,10 @@ toggle_option(struct view *view, enum request request, char msg[SIZEOF_STR])
 
 		*opt = (*opt + 1) % data[i].map_size;
 		if (data[i].map == ignore_space_map) {
-			update_ignore_space_arg();
 			string_format_size(msg, SIZEOF_STR,
 				"Ignoring %s %s", enum_name(data[i].map[*opt]), menu[i].text);
 
 		} else if (data[i].map == commit_order_map) {
-			update_commit_order_arg();
 			string_format_size(msg, SIZEOF_STR,
 				"Using %s %s", enum_name(data[i].map[*opt]), menu[i].text);
 
@@ -2230,6 +2179,41 @@ struct format_context {
 	bool file_filter;
 };
 
+static inline bool
+format_diff_context_arg(const char ***dst_argv, int diff_context)
+{
+	char buf[42];
+
+	return string_format(buf, "-U%u", diff_context) && argv_append(dst_argv, buf);
+}
+
+static inline bool
+format_ignore_space_arg(const char ***dst_argv, enum ignore_space ignore_space)
+{
+	if (ignore_space == IGNORE_SPACE_ALL) {
+		return argv_append(dst_argv, "--ignore-all-space");
+	} else if (opt_ignore_space == IGNORE_SPACE_SOME) {
+		return argv_append(dst_argv, "--ignore-space-change");
+	} else if (opt_ignore_space == IGNORE_SPACE_AT_EOL) {
+		return argv_append(dst_argv, "--ignore-space-at-eol");
+	}
+	return TRUE;
+}
+
+static inline bool
+format_commit_order_arg(const char ***dst_argv, enum commit_order commit_order)
+{
+	if (commit_order == COMMIT_ORDER_TOPO) {
+		return argv_append(dst_argv, "--topo-order");
+	} else if (commit_order == COMMIT_ORDER_DATE) {
+		return argv_append(dst_argv, "--date-order");
+	} else if (commit_order == COMMIT_ORDER_REVERSE) {
+		return argv_append(dst_argv, "--reverse");
+	}
+	return TRUE;
+}
+
+
 static bool
 format_expand_arg(struct format_context *format, const char *name)
 {
@@ -2308,9 +2292,21 @@ format_append_argv(struct format_context *format, const char ***dst_argv, const 
 	if (!src_argv)
 		return TRUE;
 
-	for (argc = 0; src_argv[argc]; argc++)
-		if (!format_append_arg(format, dst_argv, src_argv[argc]))
+	for (argc = 0; src_argv[argc]; argc++) {
+		const char *arg = src_argv[argc];
+
+		if (arg == arg_diff_context)
+			return format_diff_context_arg(dst_argv, opt_diff_context);
+
+		if (arg == arg_ignore_space)
+			return format_ignore_space_arg(dst_argv, opt_ignore_space);
+
+		if (arg == arg_commit_order)
+			return format_diff_context_arg(dst_argv, opt_commit_order);
+
+		if (!format_append_arg(format, dst_argv, arg))
 			return FALSE;
+	}
 
 	return src_argv[argc] == NULL;
 }
@@ -3107,7 +3103,6 @@ update_diff_context(enum request request)
 	switch (request) {
 	case REQ_DIFF_CONTEXT_UP:
 		opt_diff_context += 1;
-		update_diff_context_arg(opt_diff_context);
 		break;
 
 	case REQ_DIFF_CONTEXT_DOWN:
@@ -3116,7 +3111,6 @@ update_diff_context(enum request request)
 			break;
 		}
 		opt_diff_context -= 1;
-		update_diff_context_arg(opt_diff_context);
 		break;
 
 	default:
@@ -3650,7 +3644,7 @@ diff_open(struct view *view, enum open_flags flags)
 	static const char *diff_argv[] = {
 		"git", "show", opt_encoding_arg, "--pretty=fuller", "--root",
 			"--patch-with-stat",
-			opt_notes_arg, opt_diff_context_arg, opt_ignore_space_arg,
+			opt_notes_arg, arg_diff_context, arg_ignore_space,
 			"%(diffargs)", "--no-color", "%(commit)", "--", "%(fileargs)", NULL
 	};
 
@@ -5223,13 +5217,13 @@ blame_request(struct view *view, enum request request, struct line *line)
 			struct view *diff = VIEW(REQ_VIEW_DIFF);
 			const char *diff_parent_argv[] = {
 				GIT_DIFF_BLAME(opt_encoding_arg,
-					opt_diff_context_arg,
-					opt_ignore_space_arg, view->vid)
+					arg_diff_context,
+					arg_ignore_space, view->vid)
 			};
 			const char *diff_no_parent_argv[] = {
 				GIT_DIFF_BLAME_NO_PARENT(opt_encoding_arg,
-					opt_diff_context_arg,
-					opt_ignore_space_arg, view->vid)
+					arg_diff_context,
+					arg_ignore_space, view->vid)
 			};
 			const char **diff_index_argv = *blame->commit->parent_id
 				? diff_parent_argv : diff_no_parent_argv;
@@ -5390,7 +5384,7 @@ branch_request(struct view *view, enum request request, struct line *line)
 	{
 		const struct ref *ref = branch->ref;
 		const char *all_branches_argv[] = {
-			GIT_MAIN_LOG(opt_encoding_arg, "", branch_is_all(branch) ? "--all" : ref->name, "")
+			GIT_MAIN_LOG(opt_encoding_arg, arg_commit_order, "", branch_is_all(branch) ? "--all" : ref->name, "")
 		};
 		struct view *main_view = VIEW(REQ_VIEW_MAIN);
 
@@ -6546,22 +6540,22 @@ static bool
 stage_open(struct view *view, enum open_flags flags)
 {
 	static const char *no_head_diff_argv[] = {
-		GIT_DIFF_STAGED_INITIAL(opt_encoding_arg, opt_diff_context_arg, opt_ignore_space_arg,
+		GIT_DIFF_STAGED_INITIAL(opt_encoding_arg, arg_diff_context, arg_ignore_space,
 			stage_status.new.name)
 	};
 	static const char *index_show_argv[] = {
-		GIT_DIFF_STAGED(opt_encoding_arg, opt_diff_context_arg, opt_ignore_space_arg,
+		GIT_DIFF_STAGED(opt_encoding_arg, arg_diff_context, arg_ignore_space,
 			stage_status.old.name, stage_status.new.name)
 	};
 	static const char *files_show_argv[] = {
-		GIT_DIFF_UNSTAGED(opt_encoding_arg, opt_diff_context_arg, opt_ignore_space_arg,
+		GIT_DIFF_UNSTAGED(opt_encoding_arg, arg_diff_context, arg_ignore_space,
 			stage_status.old.name, stage_status.new.name)
 	};
 	/* Diffs for unmerged entries are empty when passing the new
 	 * path, so leave out the new path. */
 	static const char *files_unmerged_argv[] = {
 		"git", "diff-files", opt_encoding_arg, "--root", "--patch-with-stat",
-			opt_diff_context_arg, opt_ignore_space_arg, "--",
+			arg_diff_context, arg_ignore_space, "--",
 			stage_status.old.name, NULL
 	};
 	static const char *file_argv[] = { repo.cdup, stage_status.new.name, NULL };
@@ -6601,15 +6595,14 @@ stage_open(struct view *view, enum open_flags flags)
 		die("line type %d not handled in switch", stage_line_type);
 	}
 
-	if (!status_stage_info(view->ref, stage_line_type, &stage_status)
-		|| !argv_copy(&view->argv, argv)) {
+	if (!status_stage_info(view->ref, stage_line_type, &stage_status)) {
 		report("Failed to open staged view");
 		return FALSE;
 	}
 
 	view->vid[0] = 0;
 	view->dir = repo.cdup;
-	return begin_update(view, NULL, NULL, flags);
+	return begin_update(view, NULL, argv, flags);
 }
 
 static bool
@@ -6840,7 +6833,7 @@ static bool
 main_open(struct view *view, enum open_flags flags)
 {
 	static const char *main_argv[] = {
-		GIT_MAIN_LOG(opt_encoding_arg, "%(diffargs)", "%(revargs)", "%(fileargs)")
+		GIT_MAIN_LOG(opt_encoding_arg, arg_commit_order, "%(diffargs)", "%(revargs)", "%(fileargs)")
 	};
 	struct main_state *state = view->private;
 
@@ -7034,13 +7027,13 @@ main_request(struct view *view, enum request request, struct line *line)
 			struct view *diff = VIEW(REQ_VIEW_DIFF);
 			const char *diff_staged_argv[] = {
 				GIT_DIFF_STAGED(opt_encoding_arg,
-					opt_diff_context_arg,
-					opt_ignore_space_arg, NULL, NULL)
+					arg_diff_context,
+					arg_ignore_space, NULL, NULL)
 			};
 			const char *diff_unstaged_argv[] = {
 				GIT_DIFF_UNSTAGED(opt_encoding_arg,
-					opt_diff_context_arg,
-					opt_ignore_space_arg, NULL, NULL)
+					arg_diff_context,
+					arg_ignore_space, NULL, NULL)
 			};
 			const char **diff_argv = line->type == LINE_STAT_STAGED
 				? diff_staged_argv : diff_unstaged_argv;
