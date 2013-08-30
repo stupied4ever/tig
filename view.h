@@ -44,6 +44,20 @@ struct position {
 	unsigned long lineno;	/* Current line number */
 };
 
+struct line {
+	enum line_type type;
+	unsigned int lineno:24;
+
+	/* State flags */
+	unsigned int selected:1;
+	unsigned int dirty:1;
+	unsigned int cleareol:1;
+	unsigned int wrapped:1;
+
+	unsigned int user_flags:6;
+	void *data;		/* User data */
+};
+
 struct view {
 	const char *name;	/* View name */
 	const char *id;		/* Points to either of ref_{head,commit,blob} */
