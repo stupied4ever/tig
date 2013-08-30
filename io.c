@@ -252,6 +252,30 @@ encoding_iconv(iconv_t iconv_cd, const char *string)
 	return ret == instr ? string : ret;
 }
 
+struct encoding *
+get_path_encoding(const char *path, struct encoding *default_encoding)
+{
+	const char *check_attr_argv[] = {
+		"git", "check-attr", "encoding", "--", path, NULL
+	};
+	char buf[SIZEOF_STR];
+	char *encoding;
+
+	/* <path>: encoding: <encoding> */
+
+	if (!*path || !io_run_buf(check_attr_argv, buf, sizeof(buf))
+	    || !(encoding = strstr(buf, ENCODING_SEP)))
+		return default_encoding;
+
+	encoding += STRING_SIZE(ENCODING_SEP);
+	if (!strcmp(encoding, ENCODING_UTF8)
+	    || !strcmp(encoding, "unspecified")
+	    || !strcmp(encoding, "set"))
+		return default_encoding;
+
+	return encoding_open(encoding);
+}
+
 /*
  * Executing external commands.
  */
