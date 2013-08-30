@@ -398,7 +398,9 @@ struct enum_map {
 #define ENUM_MAP_MACRO(prefix, name)	ENUM_MAP(#name, ENUM_SYM_MACRO(prefix, name))
 
 #define DEFINE_ENUM(name, info) \
-	enum name { info(ENUM_SYM_MACRO) }; \
+	enum name { info(ENUM_SYM_MACRO) }
+
+#define DEFINE_ENUM_MAP(name, info) \
 	static const struct enum_map name##_map[] = { info(ENUM_MAP_MACRO) }
 
 static inline int
