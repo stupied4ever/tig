@@ -401,7 +401,12 @@ struct enum_map {
 	enum name { info(ENUM_SYM_MACRO) }
 
 #define DEFINE_ENUM_MAP(name, info) \
-	static const struct enum_map name##_map[] = { info(ENUM_MAP_MACRO) }
+	const struct enum_map name##_map[] = { info(ENUM_MAP_MACRO) }; \
+	const size_t name##_map_size = ARRAY_SIZE(name##_map)
+
+#define DEFINE_ENUM_MAP_EXTERN(name) \
+	extern const struct enum_map name##_map[]; \
+	extern const size_t name##_map_size;
 
 static inline int
 string_enum_compare(const char *str1, const char *str2, int len)

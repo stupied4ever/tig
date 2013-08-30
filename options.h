@@ -57,6 +57,14 @@
 	_(COMMIT_ORDER, DATE), \
 	_(COMMIT_ORDER, REVERSE)
 
+DEFINE_ENUM_MAP_EXTERN(filename);
+DEFINE_ENUM_MAP_EXTERN(ignore_space);
+DEFINE_ENUM_MAP_EXTERN(commit_order);
+DEFINE_ENUM_MAP_EXTERN(graphic);
+DEFINE_ENUM_MAP_EXTERN(date);
+DEFINE_ENUM_MAP_EXTERN(file_size);
+DEFINE_ENUM_MAP_EXTERN(author);
+
 #define OPTION_INFO \
 	OPT_ENUM(GRAPHIC_ENUM, graphic, line_graphics, GRAPHIC_DEFAULT) \
 	OPT_ENUM(DATE_ENUM, date, show_date, DATE_DEFAULT) \
@@ -120,6 +128,54 @@ struct options {
 #undef OPT_ARGV
 #undef OPT_
 };
+
+#define OPT_ERR_INFO \
+	OPT_ERR_(INTEGER_VALUE_OUT_OF_BOUND, "Integer value out of bound"), \
+	OPT_ERR_(INVALID_STEP_VALUE, "Invalid step value"), \
+	OPT_ERR_(NO_OPTION_VALUE, "No option value"), \
+	OPT_ERR_(NO_VALUE_ASSIGNED, "No value assigned"), \
+	OPT_ERR_(OBSOLETE_REQUEST_NAME, "Obsolete request name"), \
+	OPT_ERR_(OUT_OF_MEMORY, "Out of memory"), \
+	OPT_ERR_(TOO_MANY_OPTION_ARGUMENTS, "Too many option arguments"), \
+	OPT_ERR_(FILE_DOES_NOT_EXIST, "File does not exist"), \
+	OPT_ERR_(UNKNOWN_ATTRIBUTE, "Unknown attribute"), \
+	OPT_ERR_(UNKNOWN_COLOR, "Unknown color"), \
+	OPT_ERR_(UNKNOWN_COLOR_NAME, "Unknown color name"), \
+	OPT_ERR_(UNKNOWN_KEY, "Unknown key"), \
+	OPT_ERR_(UNKNOWN_KEY_MAP, "Unknown key map"), \
+	OPT_ERR_(UNKNOWN_OPTION_COMMAND, "Unknown option command"), \
+	OPT_ERR_(UNKNOWN_REQUEST_NAME, "Unknown request name"), \
+	OPT_ERR_(UNKNOWN_VARIABLE_NAME, "Unknown variable name"), \
+	OPT_ERR_(UNMATCHED_QUOTATION, "Unmatched quotation"), \
+	OPT_ERR_(WRONG_NUMBER_OF_ARGUMENTS, "Wrong number of arguments"), \
+	OPT_ERR_(HOME_UNRESOLVABLE, "HOME environment variable could not be resolved"),
+
+enum option_code {
+#define OPT_ERR_(name, msg) OPT_ERR_ ## name
+	OPT_ERR_INFO
+#undef	OPT_ERR_
+	OPT_OK
+};
+
+struct repo_info {
+	char head[SIZEOF_REF];
+	char remote[SIZEOF_REF];
+	char cdup[SIZEOF_STR];
+	char prefix[SIZEOF_STR];
+	char git_dir[SIZEOF_STR];
+	bool is_inside_work_tree;
+};
+
+extern struct repo_info repo;
+extern struct options opt;
+extern char arg_encoding[];
+extern struct encoding *opt_encoding;
+
+int load_options(void);
+int load_git_config(void);
+
+enum option_code set_option(const char *opt, char *value);
+enum option_code parse_int(int *opt, const char *arg, int min, int max);
 
 #endif
 /* vim: set ts=8 sw=8 noexpandtab: */
